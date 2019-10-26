@@ -63,7 +63,7 @@ As the TOP500 website lacks a REST API, data is obtained directly from the HTML 
   ```
 
 ### Notes
-* ``run.sh`` is a shell script designed specifically to be used at Toolforge. Currently, is is used for mass-import.
+* ``run.sh`` is a shell script designed specifically to be used at Toolforge. Currently, it is used for mass-import.
 * For mass update of already-existing items, several ``./main.py -i <Wikidata item> -t <TOP500 id>`` instances may be ran in parallel.
 * Using your main account is strongly discouraged. Use a [bot account](https://www.wikidata.org/wiki/Wikidata:Bots) with a [bot password](https://www.wikidata.org/wiki/Special:BotPasswords).
 
