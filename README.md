@@ -1,5 +1,5 @@
 # TOP500 importer
-![Logo](https://raw.githubusercontent.com/Amitie10g/wikidata_top500/logo.png)
+![Logo](https://raw.githubusercontent.com/Amitie10g/wikidata_top500/master/logo.png)
 
 **TOP500 importer** (aka. **Wikidata TOP500**) is a project aimed to make a bot to save the [TOP500](https://top500.org) supercomputer database into [Wikidata](https://wikidata.org), using [**Pywikibot**](https://github.com/wikimedia/pywikibot). This branch has support for Redis and has specific support for running under [Toolforge](https://wikitech.wikimedia.org/wiki/Portal:Toolforge/About_Toolforge).
 
