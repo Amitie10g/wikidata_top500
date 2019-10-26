@@ -9,9 +9,11 @@ Copyright (c) 2019 Davod (Amitie 10g
 Licensed under the MIT license. See LICENSE for details
 """
 
-# :: Import libraries
+# :: Import standard libraries
 import sys
 import getopt
+
+# Import local library
 from library import Top500Importer
 
 # :: Check Python version (3.5 or above)
