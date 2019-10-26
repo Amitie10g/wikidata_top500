@@ -291,10 +291,10 @@ class Top500Importer:
 
         try:
             claim = self.str2prop(claim)
-            if claim is False:
-                raise ValueError(u'Notice: Invalid property provided')
+            if not claim:
+                raise ValueError(u'Error: Invalid property provided.')
         except ValueError as e:
-            #sys.stderr.write(str(e) + '\n')
+            sys.stderr.write(str(e) + '\n')
             return False
 
         if isinstance(data, list):
@@ -323,8 +323,11 @@ class Top500Importer:
         if nonempty:
             claims = item.get(u'claims')
 
-            if claim in claims[u'claims']:
-                sys.stderr.write(u'Notice: Claim already set: ' + stripped(str(claim)))
+            try:
+                if claim in claims[u'claims']:
+                    raise ValueError(u'Notice: Claim already set: ' + stripped(str(claim)))
+            except ValueError as e:
+                sys.stderr.write(str(e) + '\n')
                 return False
 
         claim = pywikibot.Claim(repo, claim)
@@ -334,17 +337,24 @@ class Top500Importer:
             try:
                 value = self.str2statement(stripped(str(value)))
                 if not value:
-                    raise ValueError()
+                    raise ValueError(u'Error: Unknown statement provided!\n')
                 claim.setTarget(pywikibot.ItemPage(repo, value))
             except (pywikibot.exceptions.PageRelatedError,
                     pywikibot.exceptions.WikiBaseError,
                     pywikibot.exceptions.InvalidTitle,
-                    ValueError):
-                #sys.stderr.write(u'Error: Invalid statement provided!\n')
+                    ValueError) as e:
+                sys.stderr.write(str(e) + '\n')
                 return False
 
         # Amount (123.45 <suffix>)
         elif datatype == 'amount':
+            try:
+                if not value:
+                    raise ValueError(u'Notice: Empty value.')
+            except ValueError as e:
+                sys.stderr.write(str(e) + '\n')
+                return False
+
             value = value.split(' ')
 
             try:
@@ -352,7 +362,7 @@ class Top500Importer:
                 if not amount:
                     raise ValueError(u'Error: Non-numeric value provided!')
             except ValueError as e:
-                #sys.stderr.write(str(e) + '\n')
+                sys.stderr.write(str(e) + '\n')
                 return False
 
             if len(value) > 1:
@@ -364,14 +374,13 @@ class Top500Importer:
                     unit = entity_helper_string+unit.format()
                     claim.setTarget(pywikibot.WbQuantity(amount=amount, unit=unit, site=self.site))
                 except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError, ValueError):
-                    #sys.stderr.write(u'Error: Invalid ammount and/or unit provided!')
+                    sys.stderr.write(u'Error: Invalid ammount and/or unit provided!')
                     return False
             else:
                 try:
                     claim.setTarget(pywikibot.WbQuantity(amount=amount, site=self.site))
                 except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
-                    #sys.stderr.write(u'Error: Invalid ammount provided!')
-                    pass
+                    sys.stderr.write(u'Error: Invalid ammount provided!')
 
         # Date (12/2018)
         elif datatype == 'date':
@@ -379,7 +388,7 @@ class Top500Importer:
             if date != False:
                 claim.setTarget(pywikibot.WbTime(year=date[0], month=date[1]))
             else:
-                #sys.stderr.write(u'Error: Invalid date provided!')
+                sys.stderr.write(u'Error: Invalid date provided!')
                 return False
 
         # String ("anything")
@@ -387,8 +396,7 @@ class Top500Importer:
             try:
                 claim.setTarget(stripped(str(value)))
             except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
-                #sys.stderr.write(u'Error: Non-string value provided!')
-                pass
+                sys.stderr.write(u'Error: Non-string value provided!')
 
         item.addClaim(claim, summary=summary)
 
@@ -397,14 +405,14 @@ class Top500Importer:
                 try:
                     qualifier = pywikibot.Claim(repo, self.str2prop(qualifier_key))
                 except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
-                    #sys.stderr.write(u'Error: Invalid property provided for qualifier!')
+                    sys.stderr.write(u'Error: Invalid property provided for qualifier!')
                     continue
 
                 if qualifier_key == 'has_role':
                     try:
                         qualifier.setTarget(pywikibot.ItemPage(repo, self.str2statement(stripped(str(qualifier_value)))))
                     except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
-                        #sys.stderr.write(u'Error: Invalid statement provided for qualifier!\n')
+                        sys.stderr.write(u'Error: Invalid statement provided for qualifier!\n')
                         continue
                 elif qualifier_key == 'date':
                     date = self.getDate(qualifier_value)
@@ -412,7 +420,7 @@ class Top500Importer:
                         try:
                             qualifier.setTarget(pywikibot.WbTime(year=int(date[0]), month=int(date[1])))
                         except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
-                            #sys.stderr.write(u'Error: Invalid date provided for qualifier!\n')
+                            sys.stderr.write(u'Error: Invalid date provided for qualifier!\n')
                             continue
                     else:
                         sys.stderr.write(u'Error: Invalid date provided for qualifier!\n')
@@ -421,7 +429,7 @@ class Top500Importer:
                     try:
                         qualifier.setTarget(qualifier_value)
                     except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
-                        #sys.stderr.write(u'Error: Non-string provided for qualifier!\n')
+                        sys.stderr.write(u'Error: Non-string provided for qualifier!\n')
                         continue
 
                 claim.addQualifier(qualifier, summary=summary)
@@ -457,95 +465,51 @@ class Top500Importer:
                 return False
 
         # Instance of
-        print(u'Instance of...\n')
-        try:
-            if not self.addClaim(item, 'instance_of', self.instance_of, 'statement'):
-                raise ValueError(u'Error: instance_of property not found!')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nInstance of...')
+        self.addClaim(item, 'instance_of', self.instance_of, 'statement')
 
         # Manufacturer
-        print(u'Manufacturer...\n')
-        try:
-            if not self.addClaim(item, 'manufacturer', data['Manufacturer'], 'statement'):
-                raise ValueError(u'Notice: No known manufacturer provided!')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nManufacturer...')
+        self.addClaim(item, 'manufacturer', data['Manufacturer'], 'statement')
 
         # Site
-        print(u'Site...\n')
-        try:
-            if not self.addClaim(item, 'site', data['Site'], 'statement'):
-                raise ValueError(u'Notice: No known site provided!')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nSite...')
+        self.addClaim(item, 'site', data['Site'], 'statement')
 
         # Cores
-        print(u'Cores...\n')
-        try:
-            if not self.addClaim(item, 'cores', data['Cores'], 'amount'):
-                raise ValueError(u'Notice: Wrong value for cores (int)')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nCores...')
+        self.addClaim(item, 'cores', data['Cores'], 'amount')
 
         # Memory
-        print(u'Memory...\n')
-        try:
-            if not self.addClaim(item, 'memory', data['Memory'], 'amount'):
-                raise ValueError(u'Notice: Wrong value for memory (Decimal)')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nMemory...')
+        self.addClaim(item, 'memory', data['Memory'], 'amount')
 
         # CPU
-        print(u'CPU...\n')
-        try:
-            if not self.addClaim(item, 'cpu', data['Processor'], 'statement'):
-                raise ValueError(u'Notice: No known CPU')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nCPU...')
+        self.addClaim(item, 'cpu', data['Processor'], 'statement')
 
         # Bus (not available at Wikidata yet, see Wikidata:Property_proposal/bus)
-        #print(u'Bus...\n')
-        #try:
-        #    if not self.addClaim(item, 'bus', [data['bus'], {'has_role':'interconnect'}], 'statement'):
-        #        raise ValueError(u'Notice: No known bus protocol provided!')
-        #except ValueError as e:
-        #    sys.stderr.write(str(e) + '\n')
+        #print(u'\nBus...')
+        #self.addClaim(item, 'bus', [data['bus'], {'has_role':'interconnect'}], 'statement')
 
         # Power
-        print(u'Power...\n')
-        try:
-            if not self.addClaim(item, 'power', data['Power Consumption'], 'amount'):
-                raise ValueError(u'Notice: Wrong value for power (Decimal)!')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nPower...')
+        self.addClaim(item, 'power', data['Power Consumption'], 'amount')
 
         # Operating sistem
-        print(u'OS...\n')
-        try:
-            if not self.addClaim(item, 'os', data['Operating System'], 'statement'):
-                raise ValueError(u'Notice: No known operating system!')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nOS...')
+        self.addClaim(item, 'os', data['Operating System'], 'statement')
 
         # Platform
-        print(u'Platform...\n')
-        try:
-            if not self.addClaim(item, 'platform', data['Platform'], 'statement'):
-                raise ValueError(u'Notice: No known hardware platform!')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nPlatform...')
+        self.addClaim(item, 'platform', data['Platform'], 'statement')
 
         # Top500 ID
-        print(u'Top500 ID...\n')
-        try:
-            if not self.addClaim(item, 'top500identifier', data['ID'], 'string'):
-                raise ValueError(u'Notice: Wrong value for TOP500 identifier')
-        except ValueError as e:
-            sys.stderr.write(str(e) + '\n')
+        print(u'\nTop500 ID...')
+        self.addClaim(item, 'top500identifier', data['ID'], 'string')
 
         # Performance (loop)
-        print(u'Performance...\n')
+        print(u'\nPerformance...')
         for rankdata in data['Rank']:
             date = rankdata['List']
 
@@ -564,10 +528,8 @@ class Top500Importer:
                         sys.stderr.write(u'Error: No known unit!\n')
 
             try:
-                if not self.addClaim(item, 'performance', [rmax, {'has_role':'rmax', 'date':date}], 'amount', False):
-                    raise ValueError(u'Notice: Wrong value for Performance (FLOPS)')
-                if not self.addClaim(item, 'performance', [rpeak, {'has_role':'rpeak', 'date':date}], 'amount', False):
-                    raise ValueError(u'Notice: Wrong value for Performance (date)')
+                self.addClaim(item, 'performance', [rmax, {'has_role':'rmax', 'date':date}], 'amount', False)
+                self.addClaim(item, 'performance', [rpeak, {'has_role':'rpeak', 'date':date}], 'amount', False)
             except (ValueError, IndexError) as e:
                 sys.stderr.write(str(e) + '\n')
 
