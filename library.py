@@ -1,0 +1,911 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+TOP500 importer (aka. Wikidata TOP500) is a project aimed to make a bot
+to save the TOP500 supercomputer database into Wikidata, using Pywikibot.
+
+Copyright (c) 2019 Davod (Amitie 10g)
+
+Licensed under the MIT license. See LICENSE for details
+"""
+# :: Standard libraries
+import re
+import sys
+import json
+import decimal
+import datetime
+import subprocess
+
+# :: Third party library
+import redis
+import requests
+from bs4 import BeautifulSoup
+import pywikibot
+
+# :: Local dictionaries
+import slist as slist
+
+class Top500Importer:
+    """This is the TOP500 importer class."""
+
+    def __init__(self, wiki_site, wiki_lang, redis_server, redis_port, instance_of, top500url, log_page, status_page):
+        """Parameters
+        ----------
+        wiki_site : str
+            The Wikibase sitename.
+
+        wiki_lang : str
+            The Wikibase language.
+
+        redis_server : str
+            The Redis server address.
+
+        redis_port : int
+            The Redis swerver port.
+
+        instance_of : str
+            The "Instance of" property.
+
+        top500url : str
+            The TOP500 URL.
+
+        log_page : str
+            The Wikibase log page.
+
+        status_page : str
+            The Wikibase status page.
+        """
+
+        self.wiki_site = wiki_site
+        self.wiki_lang = wiki_lang
+        self.redis_server = redis_server
+        self.redis_port = redis_port
+        self.instance_of = instance_of
+        self.top500url = top500url
+        self.log_page = log_page
+        self.status_page = status_page
+
+        self.site = pywikibot.Site(self.wiki_site, self.wiki_lang)
+        self.redis = redis.Redis(host=self.redis_server, port=self.redis_port, db=0)
+
+    # :: Instance methods
+
+    def getTOP500Data(self, identifier):
+        """Parse the TOP500 contents into a dictionary (array) using BeautifulSoup4.
+
+        Parameters
+        ----------
+        identifier : str
+            The TOP500 system identifier.
+
+        Returns
+        -------
+        dict
+            The contents from page as list.
+        """
+
+        # Check if the identifier string integer-like (0-9)
+        try:
+            identifier = str(identifier)
+            if re.search('^[0-9]+$', str(identifier)) is None:
+                raise ValueError('Wrong value for identifier.')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+            return False
+
+        # Check if able to load from Redis
+        try:
+            data = json.loads(self.redis.get('top500-sys-' + identifier))
+
+        # If unable to load from Redis, get from the web normally
+        except (json.JSONDecodeError, redis.exceptions.RedisError, AttributeError, TypeError):
+            # Get data from TOP500 page
+            try:
+                r = requests.get(self.top500url + '/system/' + identifier)
+
+                # Check if request returns HTTP status code 200; return False if not.
+                if r.status_code != 200:
+                    raise ValueError(u'Notice: System not found.')
+            except (ValueError, requests.exceptions.RequestException) as e:
+                sys.stderr.write(str(e) + '\n')
+                return False
+
+            # Parse the raw text from the Request object
+            top500rawdata = r.text
+            top500soup = BeautifulSoup(top500rawdata, 'html.parser')
+
+            # Get the platform (title)
+            title = ''.join(top500soup.find("h1").get_text().replace("\n", '')).strip().split(' - ')
+
+            name = title[0]
+            try:
+                platform = title[1].split(', ')[0]
+
+            except (ValueError, IndexError):
+                platform = ''
+
+            # Extract data from the main table
+            maintable = top500soup.find("table", attrs={"class":"table-condensed"})
+
+            mainheaders = []
+            for row in maintable.find_all("tr")[0:]:
+                th = [re.sub(r'\s\s+', ' ', td.get_text()).strip().replace(':', '') for td in row.find_all("th")]
+                mainheaders.append(''.join(th))
+
+            maindata = {}
+            i = 0
+            for row in maintable.find_all("tr")[0:]:
+                dataset = [re.sub(r'\s\s+', ' ', td.get_text()).strip().replace(', ', '') for td in row.find_all("td")]
+                maindata.update({mainheaders[i]:''.join(dataset)})
+                i = i+1
+
+            # Extract data from the Rank table
+            table2 = top500soup.find("table", attrs={"class":"table-responsive"})
+
+            rankheaders = []
+            for row in table2.find_all("tr")[0:]:
+                th = [re.sub(r'\s\s+', ' ', td.get_text()).strip().replace(':', '') for td in row.find_all("th")]
+                rankheaders.append(th)
+
+            rankheaders = rankheaders[0]
+            rankdata = []
+            for row in table2.find_all("tr")[1:]:
+                td = [re.sub(r'\s\s+', ' ', td.get_text()).strip().replace(', ', '') for td in row.find_all("td")]
+
+                j = 0
+                rowdata = {}
+                for cell in td:
+                    rowdata.update({rankheaders[j]:cell.strip()})
+                    j = j+1
+                rankdata.append(rowdata)
+
+            # Merge the data into the final dictionary
+            data = {}
+            data.update({'ID':identifier})
+            data.update({'Title':name, 'Platform':platform})
+            data.update(maindata)
+            data.update({'Rank':rankdata})
+
+            # Attemp to save into Redis server
+            try:
+                self.redis.set('top500-sys-' + identifier, json.dumps(data))
+
+            except (redis.exceptions.RedisError, AttributeError):
+                pass
+
+        return data
+
+    def getTOP500SiteData(self, identifier):
+        """Get site (location) available at https://www.top500.org/site/id
+        Designed to be used inside a while loop.
+
+        Parameters
+        ----------
+        identifier : str
+            The TOP500 site identifier.
+
+        Returns
+        -------
+        dict
+            The data found at the site (location) page.
+        """
+
+        # Check if the identifier string integer-like (0-9)
+        try:
+            identifier = str(identifier)
+            if re.search('^[0-9]+$', identifier) is None:
+                raise ValueError()
+        except ValueError:
+            return False
+
+        try:
+            data = self.redis.get('top500-loc-' + identifier).decode("utf-8")
+            data = json.loads(data)
+        except (json.JSONDecodeError, redis.exceptions.RedisError):
+            # Get data from TOP500 page
+            r = requests.get(self.top500url + '/system/' + identifier)
+            if r.status_code != 200:
+                return False
+
+            top500rawdata = r.text
+            top500soup = BeautifulSoup(top500rawdata, 'html.parser')
+
+            # Get the title
+            title = ''.join(top500soup.find("title").get_text().replace("\n", '')).strip().split(' | ')
+
+            # Extract data from the main table
+            maintable = top500soup.find("table", attrs={"class":"table-condensed"})
+
+            mainheaders = []
+            for row in maintable.find_all("tr")[0:]:
+                th = [re.sub(r'\s\s+', ' ', td.get_text()).strip().replace(':', '') for td in row.find_all("th")]
+                mainheaders.append(''.join(th))
+
+            maindata = {}
+            i = 0
+            for row in maintable.find_all("tr")[0:]:
+                dataset = [re.sub(r'\s\s+', ' ', td.get_text()).strip().replace(', ', '') for td in row.find_all("td")]
+                maindata.update({mainheaders[i]:''.join(dataset)})
+                i = i+1
+
+            data = {}
+            data.update({'ID':identifier})
+            data.update({'Title':title[0]})
+            data.update(maindata)
+
+            try:
+                self.redis.set('top500-loc-' + identifier, json.dumps(data))
+            except redis.exceptions.RedisError:
+                pass
+
+        return data
+
+    def addClaim(self, item, claim, data, datatype='string', nonempty=True):
+        """Add a claim/qualifier to a statement.
+
+        Parameters
+        ----------
+        item : str
+            The item to be edited.
+
+        claim : str
+            The claim (property) to be added.
+
+        data : mixed
+            The value for the claim.
+            If you want to add qualifiers, you should format as list. The first key
+            contains the value; the second key contains a dict (associative array)
+            with pairs of Qualifier=>Value. Possible qualifiers are (see datatype):
+
+            * 'has_role', as 'statement' datatype
+
+            * 'date', as 'date' datatype
+
+        datatype : str
+            The desired data type. Possible values are:
+
+            * 'statement', Wikidata statement
+
+            * 'ammount', for numeric values added as ammount, with units (optional)
+
+            * 'date', in format mm/dd/YYYY. Parsing more format is planned
+
+            * 'string', plain string not associated with a statement
+
+        nonempty : bool
+            If want or not to write a property already set (to avoid duplicates):
+
+            * False (default): don't write
+
+            * True: write anyway
+
+        Returns
+        -------
+        mixed
+            True if the item has been updated;
+            Pagename if the item has been created;
+            False if something fails.
+        """
+
+        stripped = lambda s: "".join(i for i in s if 31 < ord(i) < 127)
+
+        try:
+            claim = self.str2prop(claim)
+            if claim is False:
+                raise ValueError(u'Notice: Invalid property provided')
+        except ValueError as e:
+            #sys.stderr.write(str(e) + '\n')
+            return False
+
+        if isinstance(data, list):
+            value = data[0]
+            qualifiers = data[1]
+        else:
+            value = data
+            qualifiers = False
+
+        summary = 'edited using [[:d:User:TOP500 importer|TOP500 importer]]'
+
+        if item == 'Q0':
+            try:
+                item = pywikibot.ItemPage(self.site)
+                item.editLabels(labels=data, summary=summary)
+                item = item.getID()
+                return item
+            except (pywikibot.exceptions.PageSaveRelatedError, pywikibot.exceptions.WikiBaseError) as e:
+                sys.stderr.write(str(e) + '\n')
+                sys.stderr.write(u'Fatal error: Something went wrong when creating the item. Check bot permissions\n')
+                sys.exit(0)
+        else:
+            repo = self.site.data_repository()
+            item = pywikibot.ItemPage(repo, item)
+
+        if nonempty:
+            claims = item.get(u'claims')
+
+            if claim in claims[u'claims']:
+                sys.stderr.write(u'Notice: Claim already set: ' + stripped(str(claim)))
+                return False
+
+        claim = pywikibot.Claim(repo, claim)
+
+        # Statement (QXXX)
+        if datatype == 'statement':
+            try:
+                value = self.str2statement(stripped(str(value)))
+                if not value:
+                    raise ValueError()
+                claim.setTarget(pywikibot.ItemPage(repo, value))
+            except (pywikibot.exceptions.PageRelatedError,
+                    pywikibot.exceptions.WikiBaseError,
+                    pywikibot.exceptions.InvalidTitle,
+                    ValueError):
+                #sys.stderr.write(u'Error: Invalid statement provided!\n')
+                return False
+
+        # Amount (123.45 <suffix>)
+        elif datatype == 'amount':
+            value = value.split(' ')
+
+            try:
+                amount = self.formatDecimal(value[0])
+                if not amount:
+                    raise ValueError(u'Error: Non-numeric value provided!')
+            except ValueError as e:
+                #sys.stderr.write(str(e) + '\n')
+                return False
+
+            if len(value) > 1:
+                try:
+                    entity_helper_string = "http://www.wikidata.org/entity/"
+                    unit = self.str2statement(value[1])
+                    if not unit:
+                        raise ValueError()
+                    unit = entity_helper_string+unit.format()
+                    claim.setTarget(pywikibot.WbQuantity(amount=amount, unit=unit, site=self.site))
+                except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError, ValueError):
+                    #sys.stderr.write(u'Error: Invalid ammount and/or unit provided!')
+                    return False
+            else:
+                try:
+                    claim.setTarget(pywikibot.WbQuantity(amount=amount, site=self.site))
+                except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
+                    #sys.stderr.write(u'Error: Invalid ammount provided!')
+                    pass
+
+        # Date (12/2018)
+        elif datatype == 'date':
+            date = self.getDate(value)
+            if date != False:
+                claim.setTarget(pywikibot.WbTime(year=date[0], month=date[1]))
+            else:
+                #sys.stderr.write(u'Error: Invalid date provided!')
+                return False
+
+        # String ("anything")
+        else:
+            try:
+                claim.setTarget(stripped(str(value)))
+            except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
+                #sys.stderr.write(u'Error: Non-string value provided!')
+                pass
+
+        item.addClaim(claim, summary=summary)
+
+        if qualifiers != False:
+            for qualifier_key, qualifier_value in qualifiers.items():
+                try:
+                    qualifier = pywikibot.Claim(repo, self.str2prop(qualifier_key))
+                except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
+                    #sys.stderr.write(u'Error: Invalid property provided for qualifier!')
+                    continue
+
+                if qualifier_key == 'has_role':
+                    try:
+                        qualifier.setTarget(pywikibot.ItemPage(repo, self.str2statement(stripped(str(qualifier_value)))))
+                    except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
+                        #sys.stderr.write(u'Error: Invalid statement provided for qualifier!\n')
+                        continue
+                elif qualifier_key == 'date':
+                    date = self.getDate(qualifier_value)
+                    if date != False:
+                        try:
+                            qualifier.setTarget(pywikibot.WbTime(year=int(date[0]), month=int(date[1])))
+                        except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
+                            #sys.stderr.write(u'Error: Invalid date provided for qualifier!\n')
+                            continue
+                    else:
+                        sys.stderr.write(u'Error: Invalid date provided for qualifier!\n')
+                        continue
+                else:
+                    try:
+                        qualifier.setTarget(qualifier_value)
+                    except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError):
+                        #sys.stderr.write(u'Error: Non-string provided for qualifier!\n')
+                        continue
+
+                claim.addQualifier(qualifier, summary=summary)
+        return True
+
+    def updateItem(self, data, item='Q0', updatelog=True):
+        """Update an item.
+
+        Parameters
+        ----------
+        item : str
+            The Wikidata item to be edited. If no item provided, new one will be created.
+        data : dict
+            The data retrived from getTOP500Data().
+
+        Returns
+        -------
+        bool
+            True if successful, False if fails.
+        """
+
+        if bool(re.search('^Q[0-9]+$', item)) is None:
+            return False
+
+        if item == 'Q0':
+            print(u'Creating new item...\n')
+            try:
+                item = self.addClaim(item, 'label', {'en':data['Title'], 'es':data['Title']}, 'label')
+                if item is False:
+                    raise ValueError(u'Error: Something went wrong when creating a new item')
+            except ValueError as e:
+                sys.stderr.write(str(e) + '\n')
+                return False
+
+        # Instance of
+        print(u'Instance of...\n')
+        try:
+            if not self.addClaim(item, 'instance_of', self.instance_of, 'statement'):
+                raise ValueError(u'Error: instance_of property not found!')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Manufacturer
+        print(u'Manufacturer...\n')
+        try:
+            if not self.addClaim(item, 'manufacturer', data['Manufacturer'], 'statement'):
+                raise ValueError(u'Notice: No known manufacturer provided!')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Site
+        print(u'Site...\n')
+        try:
+            if not self.addClaim(item, 'site', data['Site'], 'statement'):
+                raise ValueError(u'Notice: No known site provided!')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Cores
+        print(u'Cores...\n')
+        try:
+            if not self.addClaim(item, 'cores', data['Cores'], 'amount'):
+                raise ValueError(u'Notice: Wrong value for cores (int)')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Memory
+        print(u'Memory...\n')
+        try:
+            if not self.addClaim(item, 'memory', data['Memory'], 'amount'):
+                raise ValueError(u'Notice: Wrong value for memory (Decimal)')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # CPU
+        print(u'CPU...\n')
+        try:
+            if not self.addClaim(item, 'cpu', data['Processor'], 'statement'):
+                raise ValueError(u'Notice: No known CPU')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Bus (not available at Wikidata yet, see Wikidata:Property_proposal/bus)
+        #print(u'Bus...\n')
+        #try:
+        #    if not self.addClaim(item, 'bus', [data['bus'], {'has_role':'interconnect'}], 'statement'):
+        #        raise ValueError(u'Notice: No known bus protocol provided!')
+        #except ValueError as e:
+        #    sys.stderr.write(str(e) + '\n')
+
+        # Power
+        print(u'Power...\n')
+        try:
+            if not self.addClaim(item, 'power', data['Power Consumption'], 'amount'):
+                raise ValueError(u'Notice: Wrong value for power (Decimal)!')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Operating sistem
+        print(u'OS...\n')
+        try:
+            if not self.addClaim(item, 'os', data['Operating System'], 'statement'):
+                raise ValueError(u'Notice: No known operating system!')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Platform
+        print(u'Platform...\n')
+        try:
+            if not self.addClaim(item, 'platform', data['Platform'], 'statement'):
+                raise ValueError(u'Notice: No known hardware platform!')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Top500 ID
+        print(u'Top500 ID...\n')
+        try:
+            if not self.addClaim(item, 'top500identifier', data['ID'], 'string'):
+                raise ValueError(u'Notice: Wrong value for TOP500 identifier')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+
+        # Performance (loop)
+        print(u'Performance...\n')
+        for rankdata in data['Rank']:
+            date = rankdata['List']
+
+            try:
+                rmax = rankdata['Rmax (GFlops)'] + ' GFlops'
+                rpeak = rankdata['Rpeak (GFlops)'] + ' GFlops'
+            except (ValueError, IndexError):
+                try:
+                    rmax = rankdata['Rmax (TFlops)'] + ' TFlops'
+                    rpeak = rankdata['Rpeak (TFlops)'] + ' TFlops'
+                except (ValueError, IndexError):
+                    try:
+                        rmax = rankdata['Rmax (PFlops)'] + ' PFlops'
+                        rpeak = rankdata['Rpeak (PFlops)'] + ' PFlops'
+                    except (ValueError, IndexError):
+                        sys.stderr.write(u'Error: No known unit!\n')
+
+            try:
+                if not self.addClaim(item, 'performance', [rmax, {'has_role':'rmax', 'date':date}], 'amount', False):
+                    raise ValueError(u'Notice: Wrong value for Performance (FLOPS)')
+                if not self.addClaim(item, 'performance', [rpeak, {'has_role':'rpeak', 'date':date}], 'amount', False):
+                    raise ValueError(u'Notice: Wrong value for Performance (date)')
+            except (ValueError, IndexError) as e:
+                sys.stderr.write(str(e) + '\n')
+
+        # Once everything done, log
+        if updatelog:
+            self.updateLog(item)
+
+        print(u'Success!\n')
+        return True
+
+    def updateStatus(self, status=0):
+        """Update status page.
+
+        Parameters
+        ----------
+        status : int
+            The status:
+
+             * 0: stopped
+
+             * 1: running
+
+             * 2: error (if something went wrong)
+
+        Returns
+        -------
+        object
+            pywikibot.Page.save() result: True if successful; False if fails.
+        """
+
+        summary = 'update bot status: '
+
+        if status == 1:
+            summary = summary + 'running'
+        elif status == 0:
+            summary = summary + 'stopped'
+        elif status == 128:
+            summary = summary + 'ended one'
+        else:
+            summary = summary + 'error'
+
+        try:
+            page = pywikibot.Page(self.site, self.status_page)
+            page.text = str(status)
+            return page.save(summary=summary, minor=True)
+        except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError) as e:
+            sys.stderr.write(str(e) + '\n')
+            return False
+
+    def getLog(self):
+        """Get the contents from Log page.
+
+        Parameters
+        ----------
+        void
+
+        Returns
+        -------
+        string
+            Page contents (as wikitext).
+        """
+
+        page = pywikibot.Page(self.site, self.log_page)
+
+        return page.get()
+
+    def updateLog(self, item):
+        """Save logs when item is updated.
+
+        Parameters
+        ----------
+        item : str
+            The Wikidata item to be edited. If no item provided, new one will be created.
+
+        Returns
+        -------
+        bool
+            pywikibot.Page.save() result: True if successful; False if fails.
+        """
+
+        try:
+            page = pywikibot.Page(self.site, self.log_page)
+            page.text = page.text.replace('<!-- End List -->', '') + '* {{q|' + item + "}}\n<!-- End List -->\n"
+            summary = 'Item [[' + item + ']] successfuly updated'
+            return page.save(summary=summary, minor=True)
+        except pywikibot.EditConflict as e:
+            sys.stderr.write(str(e) + '\n')
+
+    def main(self, identifier, item):
+        """Main function, to fill individual items, if already exist.
+
+        Parameters
+        ----------
+        id : str
+            The TOP500 system identifier.
+
+        item : str
+            The Wikidata item.
+
+        Returns
+        -------
+        bool
+            True if successful, False if fails.
+        """
+
+        try:
+            data = self.getTOP500Data(identifier)
+            if not data:
+                raise ValueError('Notice: No data found.')
+            else:
+                try:
+                    if not self.updateItem(data, item, False):
+                        raise ValueError('Something went wrong when updating.')
+                except ValueError as e:
+                    sys.stderr.write(str(e) + '\n')
+                    return False
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
+            return False
+
+        return True
+
+    def mass(self, mul=0):
+        """Create items with data in masse.
+
+        Parameters
+        ----------
+        void
+
+        Returns
+        -------
+        void
+        """
+
+        fact = 1000
+
+        try:
+            mul = int(mul)
+        except ValueError:
+            mul = 0
+
+        try:
+            identifier = self.readCounter(mul)
+            if not identifier:
+                raise ValueError()
+        except ValueError:
+            identifier = int((mul*fact)+1)
+
+        limit = int(((mul*fact)+1)+fact)
+
+        while identifier < limit:
+
+            print(u'Debug: ID: ' + str(identifier) + "\n")
+
+            try:
+                data = self.getTOP500Data(str(identifier))
+
+                if not data:
+                    raise ValueError
+
+                else:
+                    try:
+                        if self.updateItem(data):
+                            self.updateCounter(identifier, str(mul))
+
+                        else:
+                            raise ValueError('Something went wrong when updating.')
+
+                    except ValueError as e:
+                        sys.stderr.write(str(e) + '\n')
+                        self.updateCounter(identifier, str(mul))
+
+            except ValueError as e:
+                sys.stderr.write(str(e) + '\n')
+                self.updateCounter(identifier, str(mul))
+
+            identifier = identifier + 1
+
+    # :: Static methods
+
+    @staticmethod
+    def getDate(date):
+        """Validate the date, in TOP500 Rank table format (mm/YYYY),
+        and return the month and year.
+
+        Parameters
+        ----------
+        date : str
+            The date to be parsed.
+
+        Returns
+        -------
+        list
+            The list with month ([1]) and year([0]); False if fails.
+        """
+
+        try:
+            datetime.datetime.strptime(date, '%m/%Y')
+            date = date.split('/')
+            return [date[1], date[0]]
+
+        except ValueError:
+            return False
+
+    @staticmethod
+    def formatDecimal(num):
+        """Normalize decimal numbers, remove trailing zeroes
+        (credits: https://stackoverflow.com/questions/2440692).
+
+        Parameters
+        ----------
+        num : mixed
+            The number (string or numeric) to be parsed.
+
+        Returns
+        -------
+        Decimal
+            The number as Decimal value, with trailing zeroes removed.
+        """
+
+        try:
+            dec = decimal.Decimal(str(num))
+            return dec.quantize(decimal.Decimal(1)) if dec == dec.to_integral() else dec.normalize()
+
+        except decimal.InvalidOperation:
+            return False
+
+    @staticmethod
+    def str2statement(statement):
+        """Parse arbitrary string into a Wikidata statement.
+
+        Parameters
+        ----------
+        statement : str
+            The string to be parsed.
+
+        Returns
+        -------
+        str
+            The equivalent statement.
+        """
+
+        return slist.statements.get(str(statement), False)
+
+    @staticmethod
+    def str2prop(prop):
+        """Parse arbitrary string into a Wikidata property.
+
+        Parameters
+        ----------
+        prop : str
+            The string to be parsed.
+
+        Returns
+        -------
+        str
+            The equivalent property.
+        """
+
+        if prop == 'label':
+            return 'label'
+
+        return slist.properties.get(str(prop), False)
+
+    @staticmethod
+    def identifier2url(prop):
+        """Parse a given identifier value and property, and get the URL.
+
+        Parameters
+        ----------
+        prop : str
+            The property (PXXXX) to be parsed.
+
+        Returns
+        -------
+        str
+            The desired URL.
+        """
+
+        return slist.identifiers.get(str(prop), False)
+
+    @staticmethod
+    def updateCounter(amount, mul=1):
+        """Update the counter, in both internal and Wiki.
+
+        Parameters
+        ----------
+        id : int
+            The amount.
+
+        Returns
+        -------
+        bool
+            pywikibot.Page.save() result: True if successful; False if fails.
+        """
+
+        try:
+            f = open("masscount."+str(mul), "w")
+            f.write(str(amount))
+            f.close()
+            return True
+        except (OSError, IOError) as e:
+            sys.stderr.write(str(e) + '\n')
+            return False
+
+    @staticmethod
+    def readCounter(mul):
+        """Read the identifier counter from local file.
+
+        Parameters
+        ----------
+        mul: int
+            The multiplier.
+
+        Returns
+        -------
+        int
+            The identifier; False otherwise.
+        """
+        try:
+            f = open("masscount."+str(mul), "r")
+            identifier = f.read()
+            f.close()
+            return int(identifier)
+        except (ValueError, OSError, IOError):
+            return False
+
+    @staticmethod
+    def qstat():
+        """Run qstat and return its status.
+
+        Parameters
+        ----------
+        void
+
+        Returns
+        -------
+        int
+            The return status.
+        """
+        return subprocess.run(["qstat", "-j", "top500importer*"], stdout=subprocess.DEVNULL)
