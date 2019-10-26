@@ -646,10 +646,10 @@ class Top500Importer:
             Page contents (as wikitext).
         """
 
-		try:
-			page = pywikibot.Page(self.site, self.log_page)
-			return page.get()
-		except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError, ValueError) as e:
+        try:
+            page = pywikibot.Page(self.site, self.log_page)
+            return page.get()
+        except (pywikibot.exceptions.PageRelatedError, pywikibot.exceptions.WikiBaseError, ValueError) as e:
             sys.stderr.write(str(e) + '\n')
             return False
 
@@ -674,7 +674,7 @@ class Top500Importer:
             return page.save(summary=summary, minor=True)
         except pywikibot.EditConflict as e:
             sys.stderr.write(str(e) + '\n')
-			return False
+            return False
 
     def main(self, identifier, item):
         """Main function, to fill individual items, if already exist.
