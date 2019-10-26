@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-""":: main.py
-
+"""
 TOP500 importer main script
 
 Copyright (c) 2019 Davod (Amitie 10g)

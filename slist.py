@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-#
 """
 # List of string-to-item/property for Wikidata
 # Names comes directly from TOP500 database

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 TOP500 importer (aka. Wikidata TOP500) is a project aimed to make a bot
