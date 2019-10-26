@@ -8,6 +8,7 @@ Copyright (c) 2019 Davod (Amitie 10g)
 
 Licensed under the MIT license. See LICENSE for details
 """
+
 # :: Standard libraries
 import re
 import sys

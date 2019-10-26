@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 #
-# :: dict.py
-#
+"""
 # List of string-to-item/property for Wikidata
 # Names comes directly from TOP500 database
 #
-# (c) 2019 Davod (Amitie 10g)
+# Copyright (c): 2019 Davod (Amitie 10g)
 #
 # Licensed under the MIT license. See LICENSE for details
-#
+"""
+
 statements = {
     # :: CPUs
     'Alpha 495MHz':'Q858065',

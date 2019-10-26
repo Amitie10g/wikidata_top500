@@ -4,7 +4,7 @@
 
 TOP500 importer main script
 
-Copyright (c) 2019 Davod (Amitie 10g
+Copyright (c) 2019 Davod (Amitie 10g)
 
 Licensed under the MIT license. See LICENSE for details
 """

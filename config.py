@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+""" This is the configuration file """
 config = {
     'site': 'wikidata',
     'lang': 'wikidata',
