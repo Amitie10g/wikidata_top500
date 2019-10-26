@@ -292,7 +292,7 @@ class Top500Importer:
         try:
             claim = self.str2prop(claim)
             if not claim:
-                raise ValueError(u'Error: Invalid property provided.')
+                raise ValueError(u'Error: Unknown property provided.')
         except ValueError as e:
             sys.stderr.write(str(e) + '\n')
             return False
