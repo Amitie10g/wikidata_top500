@@ -55,7 +55,7 @@ As the TOP500 website lacks a REST API, data is obtained directly from the HTML 
 ## Running
 * ``python3 pywikibot/pwb.py main.py -i <Wikidata item> -t <TOP500 id>`` for individual import.
 * ``python3 pywikibot/pwb.py main.py --mass <num>`` for mass import.
-* For the first time, you need to set up pywikibot, in order to login:
+* For the first time, you may need to set up pywikibot, in order to login:
 
   ```
   python3 pywikibot/pwb.py pywikibot/generate_user_files.py
