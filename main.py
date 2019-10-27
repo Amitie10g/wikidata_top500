@@ -68,7 +68,14 @@ if args2 == []:
 try:
     try:
         # :: Call the Top500Importer object
-        top500importer = Top500Importer(wiki_site, wiki_lang, redis_server, redis_port, instance_of, top500url, log_page, status_page)
+        top500importer = Top500Importer(wiki_site,
+                                        wiki_lang,
+                                        redis_server,
+                                        redis_port,
+                                        instance_of,
+                                        top500url,
+                                        log_page,
+                                        status_page)
 
         # :: Mass import
         if args2[0] == 'mass':
