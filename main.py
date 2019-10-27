@@ -127,4 +127,3 @@ try:
 
 except SystemExit as e:
     top500importer.updateStatus(e)
-	
