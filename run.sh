@@ -47,7 +47,7 @@ if [ $STATUS == 1 ]; then
 		"$TASK_NAME$MUL" \
 		"$VENV_PATH/bin/python" \
 		"$SCRIPT_PATH/pywikibot/pwb.py" \
-		"$SCRIPT_PATH/main.py" \
+		"$SCRIPT_PATH/__main__.py" \
 		--mass \
 		"$MUL"
 
