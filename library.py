@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup
 import pywikibot
 
 # :: Local dictionaries
-import slist as slist
+import slist
 
 class Top500Importer:
     """This is the TOP500 importer class."""
