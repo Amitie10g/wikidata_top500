@@ -77,6 +77,12 @@ try:
             log_page,
             status_page)
 
+        try:
+            error = top500importer.error
+            sys.exit(0)
+        except NameError:
+            pass
+
         # :: Mass import
         if args2[0] == 'mass':
             top500importer.updateStatus(1)
