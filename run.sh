@@ -5,6 +5,7 @@
 # Set environment variables
 VENV_PATH=$HOME/venv
 SCRIPT_PATH=$HOME/wikidata_top500
+PYWIKIBOT_PATH=SCRIPT_PATH/pywikibot
 TASK_NAME=top500importer
 
 # Install Python3 and libraries at Virtualenv ($HOME/venv), if needed
@@ -18,8 +19,8 @@ fi
 # Generate Wiki user and password, if needed
 if [ ! -f "$HOME/user-config.py" ] && [ ! -f "$HOME/user-password.py" ]; then
 	"$VENV_PATH/bin/python" \
-	"$SCRIPT_PATH/pywikibot/pwb.py" \
-	"$SCRIPT_PATH/pywikibot/generate_user_files.py"
+	"$PYWIKIBOT_PATH/pwb.py" \
+	"$PYWIKIBOT_PATH/generate_user_files.py"
 	chmod 600 "$HOME/user-config.py" "$HOME/user-password.py"
 fi
 
@@ -46,7 +47,7 @@ if [ $STATUS == 1 ]; then
 	jstart -N \
 		"$TASK_NAME$MUL" \
 		"$VENV_PATH/bin/python" \
-		"$SCRIPT_PATH/pywikibot/pwb.py" \
+		"$PYWIKIBOT_PATH/pwb.py" \
 		"$SCRIPT_PATH/__main__.py" \
 		--mass \
 		"$MUL"
