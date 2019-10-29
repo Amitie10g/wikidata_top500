@@ -82,11 +82,13 @@ class Top500Importer:
             The contents from page as list.
         """
 
+        # Note: Only critical errors will be printed
+
         # Check if the identifier string integer-like (0-9)
         try:
             identifier = str(identifier)
             if re.search('^[0-9]+$', str(identifier)) is None:
-                raise ValueError('Wrong value for identifier.')
+                raise ValueError('Error: Wrong value for identifier.')
         except ValueError as e:
             sys.stderr.write(str(e) + '\n')
             return False
@@ -105,7 +107,7 @@ class Top500Importer:
                 if r.status_code != 200:
                     raise ValueError(u'Notice: System not found.')
             except (ValueError, requests.exceptions.RequestException) as e:
-                sys.stderr.write(str(e) + '\n')
+                #sys.stderr.write(str(e) + '\n')
                 return False
 
             # Parse the raw text from the Request object
@@ -192,8 +194,9 @@ class Top500Importer:
         try:
             identifier = str(identifier)
             if re.search('^[0-9]+$', identifier) is None:
-                raise ValueError()
-        except ValueError:
+                raise ValueError('Error: Wrong value for identifier.')
+        except ValueError as e:
+            sys.stderr.write(str(e) + '\n')
             return False
 
         try:
@@ -281,10 +284,15 @@ class Top500Importer:
             False if something fails.
         """
 
+        # Note: Non-critical exceptions printing are commended.
+
         stripped = lambda s: "".join(i for i in s if 31 < ord(i) < 127)
 
         summary = 'edited using [[:d:User:TOP500 importer|TOP500 importer]]'
 
+        # :: Validate data
+
+        # Validate property
         try:
             claim = self.str2prop(claim)
             if not claim:
@@ -293,6 +301,7 @@ class Top500Importer:
             sys.stderr.write(str(e) + '\n')
             return False
 
+        # Check if data contains qualifiers
         if isinstance(data, list):
             value = data[0]
             qualifiers = data[1]
@@ -300,19 +309,22 @@ class Top500Importer:
             value = data
             qualifiers = False
 
+        # Create item
         if item == 'Q0':
             try:
                 item = pywikibot.ItemPage(self.site)
                 item.editLabels(labels=data, summary=summary)
                 item = item.getID()
                 return item
+            except ValueError as e:
+                sys.stderr.write(str(e) + '\n')
+                return False
             except (pywikibot.exceptions.PageRelatedError,
                     pywikibot.exceptions.WikiBaseError,
                     pywikibot.exceptions.TimeoutError,
                     pywikibot.exceptions.Server504Error,
                     pywikibot.exceptions.ServerError) as e:
                 sys.stderr.write(str(e) + '\n')
-                sys.stderr.write(u'Fatal error: Something went wrong when creating the item. Check bot permissions\n')
                 return False
         else:
             try:
@@ -326,14 +338,17 @@ class Top500Importer:
                 sys.stderr.write(str(e) + '\n')
                 return False
 
+        # Check if claim has been set already
         if nonempty:
             try:
                 claims = item.get(u'claims')
                 if claim in claims[u'claims']:
                     raise ValueError(u'Notice: Claim already set: ' + stripped(str(claim)))
             except ValueError as e:
-                sys.stderr.write(str(e) + '\n')
+                #sys.stderr.write(str(e) + '\n')
                 return False
+
+        # :: Set claim
 
         try:
             claim = pywikibot.Claim(repo, claim)
@@ -345,6 +360,8 @@ class Top500Importer:
             sys.stderr.write(str(e) + '\n')
             return False
 
+        # :: Set target
+
         # Statement (QXXX)
         if datatype == 'statement':
             try:
@@ -352,11 +369,14 @@ class Top500Importer:
                 if not value:
                     raise ValueError(u'Error: Unknown statement provided!\n')
                 claim.setTarget(pywikibot.ItemPage(repo, value))
+            except ValueError:
+                #sys.stderr.write(str(e) + '\n')
+                return False
             except (pywikibot.exceptions.PageRelatedError,
                     pywikibot.exceptions.WikiBaseError,
                     pywikibot.exceptions.TimeoutError,
                     pywikibot.exceptions.Server504Error,
-                    ValueError) as e:
+                    pywikibot.exceptions.ServerError) as e:
                 sys.stderr.write(str(e) + '\n')
                 return False
 
@@ -370,7 +390,7 @@ class Top500Importer:
                 if not amount:
                     raise ValueError(u'Error: Non-numeric value provided!')
             except ValueError as e:
-                sys.stderr.write(str(e) + '\n')
+                #sys.stderr.write(str(e) + '\n')
                 return False
 
             if len(value) > 1:
@@ -381,19 +401,27 @@ class Top500Importer:
                         raise ValueError(u'Error: Invalid ammount and/or unit provided!')
                     unit = entity_helper_string + unit
                     claim.setTarget(pywikibot.WbQuantity(amount=amount, unit=unit, site=self.site))
+                except ValueError as e:
+                    #sys.stderr.write(str(e) + '\n')
+                    return False
                 except (pywikibot.exceptions.PageRelatedError,
                         pywikibot.exceptions.WikiBaseError,
                         pywikibot.exceptions.TimeoutError,
-                        pywikibot.exceptions.Server504Error) as e:
+                        pywikibot.exceptions.Server504Error,
+                        pywikibot.exceptions.ServerError) as e:
                     sys.stderr.write(str(e) + '\n')
                     return False
             else:
                 try:
                     claim.setTarget(pywikibot.WbQuantity(amount=amount, site=self.site))
+                except ValueError as e:
+                    #sys.stderr.write(str(e) + '\n')
+                    return False
                 except (pywikibot.exceptions.PageRelatedError,
                         pywikibot.exceptions.WikiBaseError,
                         pywikibot.exceptions.TimeoutError,
-                        pywikibot.exceptions.Server504Error) as e:
+                        pywikibot.exceptions.Server504Error,
+                        pywikibot.exceptions.ServerError) as e:
                     sys.stderr.write(str(e) + '\n')
                     return False
 
@@ -404,11 +432,14 @@ class Top500Importer:
                 if not date:
                     raise ValueError(u'Error: Invalid date provided!')
                 claim.setTarget(pywikibot.WbTime(year=date[0], month=date[1]))
+            except ValueError:
+                #sys.stderr.write(str(e) + '\n')
+                return False
             except (pywikibot.exceptions.PageRelatedError,
                     pywikibot.exceptions.WikiBaseError,
                     pywikibot.exceptions.TimeoutError,
                     pywikibot.exceptions.Server504Error,
-                    ValueError) as e:
+                    pywikibot.exceptions.ServerError) as e:
                 sys.stderr.write(str(e) + '\n')
                 return False
 
@@ -416,22 +447,29 @@ class Top500Importer:
         else:
             try:
                 claim.setTarget(stripped(str(value)))
+            except ValueError as e:
+                #sys.stderr.write(str(e) + '\n')
+                return False
             except (pywikibot.exceptions.TimeoutError,
                     pywikibot.exceptions.Server504Error,
-                    ValueError) as e:
+                    pywikibot.exceptions.ServerError) as e:
                 sys.stderr.write(str(e) + '\n')
                 return False
+
+        # :: Add claim
 
         try:
             item.addClaim(claim, summary=summary)
         except (pywikibot.exceptions.PageRelatedError,
                 pywikibot.exceptions.WikiBaseError,
                 pywikibot.exceptions.TimeoutError,
-                pywikibot.exceptions.Server504Error) as e:
+                pywikibot.exceptions.Server504Error,
+                pywikibot.exceptions.ServerError) as e:
             sys.stderr.write(str(e) + '\n')
             return False
 
-        # Qualifiers
+        # :: Qualifiers
+
         if qualifiers is not False:
             for qualifier_key, qualifier_value in qualifiers.items():
                 try:
@@ -439,13 +477,14 @@ class Top500Importer:
                     if not prop:
                         raise ValueError(u'Error: Unknown property provided!')
                     qualifier = pywikibot.Claim(repo, prop)
-                except (pywikibot.exceptions.PageRelatedError,
-                        pywikibot.exceptions.WikiBaseError,
-                        pywikibot.exceptions.TimeoutError,
-                        pywikibot.exceptions.Server504Error,
-                        ValueError) as e:
-                    sys.stderr.write(str(e) + '\n')
+                except (ValueError, pywikibot.exceptions.WikiBaseError) as e:
+                        #sys.stderr.write(str(e) + '\n')
                     continue
+                except (pywikibot.exceptions.PageRelatedError,
+                        pywikibot.exceptions.TimeoutError,
+                        pywikibot.exceptions.Server504Error) as e:
+                    sys.stderr.write(str(e) + '\n')
+                    return False
 
                 if qualifier_key == 'has_role':
                     try:
@@ -453,13 +492,14 @@ class Top500Importer:
                         if not statement:
                             raise ValueError(u'Error: \'has_role\' statement not set!')
                         qualifier.setTarget(pywikibot.ItemPage(repo, statement))
-                    except (pywikibot.exceptions.PageRelatedError,
-                            pywikibot.exceptions.WikiBaseError,
-                            pywikibot.exceptions.TimeoutError,
-                            pywikibot.exceptions.Server504Error,
-                            ValueError) as e:
-                        sys.stderr.write(str(e) + '\n')
+                    except (ValueError, pywikibot.exceptions.WikiBaseError) as e:
+                        #sys.stderr.write(str(e) + '\n')
                         continue
+                    except (pywikibot.exceptions.PageRelatedError,
+                            pywikibot.exceptions.TimeoutError,
+                            pywikibot.exceptions.Server504Error) as e:
+                        sys.stderr.write(str(e) + '\n')
+                        return False
 
                 elif qualifier_key == 'date':
 
@@ -468,28 +508,33 @@ class Top500Importer:
                         if not date:
                             raise ValueError(u'Error: Invalid date provided for qualifier!\n')
                         qualifier.setTarget(pywikibot.WbTime(year=int(date[0]), month=int(date[1])))
-                    except (pywikibot.exceptions.PageRelatedError,
-                            pywikibot.exceptions.WikiBaseError,
-                            pywikibot.exceptions.TimeoutError,
-                            pywikibot.exceptions.Server504Error,
-                            ValueError) as e:
-                        sys.stderr.write(str(e) + '\n')
+                    except (ValueError, pywikibot.exceptions.WikiBaseError) as e:
+                        #sys.stderr.write(str(e) + '\n')
                         continue
+                    except (pywikibot.exceptions.PageRelatedError,
+                            pywikibot.exceptions.TimeoutError,
+                            pywikibot.exceptions.Server504Error) as e:
+                        sys.stderr.write(str(e) + '\n')
+                        return False
 
                 else:
                     try:
                         qualifier.setTarget(qualifier_value)
+                    except (ValueError, pywikibot.exceptions.WikiBaseError) as e:
+                        #sys.stderr.write(str(e) + '\n')
+                        continue
                     except (pywikibot.exceptions.PageRelatedError,
-                            pywikibot.exceptions.WikiBaseError,
                             pywikibot.exceptions.TimeoutError,
                             pywikibot.exceptions.Server504Error) as e:
                         sys.stderr.write(str(e) + '\n')
-                        continue
+                        return False
 
                 try:
                     claim.addQualifier(qualifier, summary=summary)
+                except (ValueError, pywikibot.exceptions.WikiBaseError) as e:
+                    #sys.stderr.write(str(e) + '\n')
+                    continue
                 except (pywikibot.exceptions.PageRelatedError,
-                        pywikibot.exceptions.WikiBaseError,
                         pywikibot.exceptions.TimeoutError,
                         pywikibot.exceptions.Server504Error) as e:
                     sys.stderr.write(str(e) + '\n')
@@ -531,42 +576,48 @@ class Top500Importer:
         try:
             self.addClaim(item, 'instance_of', self.instance_of, 'statement')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Manufacturer
         print(u'\nManufacturer...')
         try:
             self.addClaim(item, 'manufacturer', data['Manufacturer'], 'statement')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Site
         print(u'\nSite...')
         try:
             self.addClaim(item, 'site', data['Site'], 'statement')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Cores
         print(u'\nCores...')
         try:
             self.addClaim(item, 'cores', data['Cores'], 'amount')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Memory
         print(u'\nMemory...')
         try:
             self.addClaim(item, 'memory', data['Memory'], 'amount')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # CPU
         print(u'\nCPU...')
         try:
             self.addClaim(item, 'cpu', data['Processor'], 'statement')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Bus (not available at Wikidata yet, see Wikidata:Property_proposal/bus)
         #print(u'\nBus...')
@@ -574,34 +625,39 @@ class Top500Importer:
             #self.addClaim(item, 'bus', [data['bus'], {'has_role':'interconnect'}], 'statement')
         #except (ValueError, IndexError) as e:
             #sys.stderr.write(str(e) + '\n')
+            #pass
 
         # Power
         print(u'\nPower...')
         try:
             self.addClaim(item, 'power', data['Power Consumption'], 'amount')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Operating sistem
         print(u'\nOS...')
         try:
             self.addClaim(item, 'os', data['Operating System'], 'statement')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Platform
         print(u'\nPlatform...')
         try:
             self.addClaim(item, 'platform', data['Platform'], 'statement')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Top500 ID
         print(u'\nTop500 ID...')
         try:
             self.addClaim(item, 'top500identifier', data['ID'], 'string')
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Performance (loop)
         print(u'\nPerformance...')
@@ -621,16 +677,19 @@ class Top500Importer:
                             rmax = rankdata['Rmax (PFlops)'] + ' PFlops'
                             rpeak = rankdata['Rpeak (PFlops)'] + ' PFlops'
                         except (ValueError, IndexError):
-                            sys.stderr.write(u'Error: No known unit!\n')
+                            #sys.stderr.write(str(e) + '\n')
+                            pass
 
                 try:
                     self.addClaim(item, 'performance', [rmax, {'has_role':'rmax', 'date':date}], 'amount', False)
                     self.addClaim(item, 'performance', [rpeak, {'has_role':'rpeak', 'date':date}], 'amount', False)
                 except (ValueError, IndexError) as e:
-                    sys.stderr.write(str(e) + '\n')
+                    #sys.stderr.write(str(e) + '\n')
+                    pass
 
         except (ValueError, IndexError) as e:
-            sys.stderr.write(str(e) + '\n')
+            #sys.stderr.write(str(e) + '\n')
+            pass
 
         # Once everything done, log
         if updatelog:
@@ -676,8 +735,7 @@ class Top500Importer:
         except (pywikibot.exceptions.PageRelatedError,
                 pywikibot.exceptions.WikiBaseError,
                 pywikibot.exceptions.TimeoutError,
-                pywikibot.exceptions.Server504Error,
-                ValueError) as e:
+                pywikibot.exceptions.Server504Error) as e:
             sys.stderr.write(str(e) + '\n')
             return False
 
@@ -700,8 +758,7 @@ class Top500Importer:
         except (pywikibot.exceptions.PageRelatedError,
                 pywikibot.exceptions.WikiBaseError,
                 pywikibot.exceptions.TimeoutError,
-                pywikibot.exceptions.Server504Error,
-                ValueError) as e:
+                pywikibot.exceptions.Server504Error) as e:
             sys.stderr.write(str(e) + '\n')
             return False
 
@@ -726,7 +783,7 @@ class Top500Importer:
                 page.text = page.text.replace('<!-- End List -->', '') + '* {{q|' + item + "}}\n<!-- End List -->\n"
                 summary = 'Item [[' + item + ']] successfuly updated'
                 return page.save(summary=summary, minor=True)
-            except (pywikibot.exceptions.EditConflict,
+            except (pywikibot.EditConflict,
                     pywikibot.exceptions.TimeoutError,
                     pywikibot.exceptions.Server504Error) as e:
                 if i < tries - 1: # i is zero indexed
@@ -735,7 +792,7 @@ class Top500Importer:
                 sys.stderr.write(str(e) + '\n')
                 return False
             except (pywikibot.OtherPageSaveError,
-                    pywikibot.WikiBaseError) as e:
+                    pywikibot.exceptions.WikiBaseError) as e:
                 sys.stderr.write(str(e) + '\n')
                 return False
             break
