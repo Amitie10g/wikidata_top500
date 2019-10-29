@@ -49,7 +49,7 @@ class Top500Importer:
             The Wikibase status page.
         """
 
-		# :: Set variables
+        # :: Set variables
         self.wiki_site = wiki_site
         self.wiki_lang = wiki_lang
         self.redis_server = redis_server
@@ -59,7 +59,7 @@ class Top500Importer:
         self.log_page = log_page
         self.status_page = status_page
 
-		# :: If something went wrong, set self.error variable
+        # :: If something went wrong, set self.error variable
         try:
             self.redis = redis.Redis(host=self.redis_server, port=self.redis_port, db=0)
             self.site = pywikibot.Site(self.wiki_site, self.wiki_lang)
@@ -821,12 +821,16 @@ class Top500Importer:
                 except ValueError as e:
                     sys.stderr.write(str(e) + '\n')
                     self.updateCounter(identifier, str(mul))
+                    continue
 
             except ValueError as e:
                 sys.stderr.write(str(e) + '\n')
                 self.updateCounter(identifier, str(mul))
+                continue
 
             identifier = identifier + 1
+
+        return True
 
     # :: Static methods
 
