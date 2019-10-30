@@ -5,7 +5,7 @@
 # Set environment variables
 VENV_PATH=$HOME/venv
 SCRIPT_PATH=$HOME/wikidata_top500
-PYWIKIBOT_PATH=SCRIPT_PATH/pywikibot
+PYWIKIBOT_PATH=$SCRIPT_PATH/pywikibot
 TASK_NAME=top500importer
 
 # Install Python3 and libraries at Virtualenv ($HOME/venv), if needed

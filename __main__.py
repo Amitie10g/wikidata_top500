@@ -139,4 +139,4 @@ try:
             sys.exit(0)
 
 except SystemExit as e:
-    top500importer.updateStatus(e)
+    top500importer.updateStatus(int(e))

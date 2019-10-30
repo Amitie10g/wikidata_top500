@@ -783,7 +783,7 @@ class Top500Importer:
                 page.text = page.text.replace('<!-- End List -->', '') + '* {{q|' + item + "}}\n<!-- End List -->\n"
                 summary = 'Item [[' + item + ']] successfuly updated'
                 return page.save(summary=summary, minor=True)
-            except (pywikibot.EditConflict,
+            except (pywikibot.exceptions.EditConflict,
                     pywikibot.exceptions.TimeoutError,
                     pywikibot.exceptions.Server504Error) as e:
                 if i < tries - 1: # i is zero indexed
