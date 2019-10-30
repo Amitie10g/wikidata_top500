@@ -719,9 +719,9 @@ class Top500Importer:
 
         summary = 'update bot status: '
 
-        if status == 2:
+        if status == 0:
             summary = summary + 'running'
-        elif status == 0:
+        elif status == 2:
             summary = summary + 'stopped'
         elif status == 128:
             summary = summary + 'ended one'
@@ -732,6 +732,8 @@ class Top500Importer:
             page = pywikibot.Page(self.site, self.status_page)
             page.text = str(status)
             return page.save(summary=summary, minor=True)
+        except (NameError, AttributeError):
+            return False
         except (pywikibot.exceptions.PageRelatedError,
                 pywikibot.exceptions.WikiBaseError,
                 pywikibot.exceptions.TimeoutError,
