@@ -80,7 +80,7 @@ try:
         try:
             error = top500importer.error
             sys.exit(0)
-        except NameError:
+        except (NameError, AttributeError):
             pass
 
         # :: Mass import
