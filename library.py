@@ -776,26 +776,20 @@ class Top500Importer:
             pywikibot.Page.save() result: True if successful; False if fails.
         """
 
-        tries = 3
-        for i in range(tries):
-            try:
-                page = pywikibot.Page(self.site, self.log_page)
-                page.text = page.text.replace('<!-- End List -->', '') + '* {{q|' + item + "}}\n<!-- End List -->\n"
-                summary = 'Item [[' + item + ']] successfuly updated'
-                return page.save(summary=summary, minor=True)
-            except (pywikibot.exceptions.EditConflict,
-                    pywikibot.exceptions.TimeoutError,
-                    pywikibot.exceptions.Server504Error) as e:
-                if i < tries - 1: # i is zero indexed
-                    continue
-
-                sys.stderr.write(str(e) + '\n')
-                return False
-            except (pywikibot.OtherPageSaveError,
-                    pywikibot.exceptions.WikiBaseError) as e:
-                sys.stderr.write(str(e) + '\n')
-                return False
-            break
+        try:
+            page = pywikibot.Page(self.site, self.log_page)
+            page.text = page.text.replace('<!-- End List -->', '') + '* {{q|' + item + "}}\n<!-- End List -->\n"
+            summary = 'Item [[' + item + ']] successfuly updated'
+            return page.save(summary=summary, minor=True)
+        except (pywikibot.exceptions.EditConflict,
+                pywikibot.exceptions.TimeoutError,
+                pywikibot.exceptions.Server504Error) as e:
+            sys.stderr.write(str(e) + '\n')
+            return False
+        except (pywikibot.OtherPageSaveError,
+                pywikibot.exceptions.WikiBaseError) as e:
+            sys.stderr.write(str(e) + '\n')
+            return False
 
     def main(self, identifier, item):
         """Main function, to fill individual items, if already exist.
