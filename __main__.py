@@ -104,7 +104,7 @@ try:
         # :: One-file import
         else:
             if len(args2) == 2:
-				top500importer.updateStatus(2)
+                top500importer.updateStatus(2)
 
                 if top500importer.main(args2[1], args2[0]):
                     print('Everything OK\n')
