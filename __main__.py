@@ -79,13 +79,13 @@ try:
 
         try:
             error = top500importer.error
-            sys.exit(0)
+            sys.exit(1)
         except (NameError, AttributeError):
             pass
 
         # :: Mass import
         if args2[0] == 'mass':
-            top500importer.updateStatus(1)
+            top500importer.updateStatus(2)
 
             if top500importer.mass(args2[1]):
                 print('Everything OK\n')
@@ -103,9 +103,9 @@ try:
 
         # :: One-file import
         else:
-            top500importer.updateStatus(1)
-
             if len(args2) == 2:
+				top500importer.updateStatus(2)
+
                 if top500importer.main(args2[1], args2[0]):
                     print('Everything OK\n')
 
@@ -125,7 +125,7 @@ try:
 
             else:
                 print(usage)
-                sys.exit(1)
+                sys.exit(3)
 
     except KeyboardInterrupt:
         try:
@@ -133,10 +133,10 @@ try:
             if system_status.returncode == 0:
                 sys.exit(128)
             else:
-                sys.exit(0)
+                sys.exit(2)
 
         except FileNotFoundError:
-            sys.exit(0)
+            sys.exit(2)
 
 except SystemExit as e:
     top500importer.updateStatus(e.code)
