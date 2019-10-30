@@ -836,7 +836,7 @@ class Top500Importer:
         void
         """
 
-        fact = 1000
+        fact = 2000
 
         try:
             mul = int(mul)
@@ -872,12 +872,9 @@ class Top500Importer:
                 except ValueError as e:
                     sys.stderr.write(str(e) + '\n')
                     self.updateCounter(identifier, str(mul))
-                    continue
 
-            except ValueError as e:
-                sys.stderr.write(str(e) + '\n')
+            except ValueError:
                 self.updateCounter(identifier, str(mul))
-                continue
 
             identifier = identifier + 1
 
