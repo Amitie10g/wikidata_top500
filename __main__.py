@@ -84,7 +84,7 @@ try:
                 status_page)
         except TypeError as e:
             sys.stderr.write(str(e) + '\n')
-			sys.exit(1)
+            sys.exit(1)
 
         try:
             print(top500importer.error)
