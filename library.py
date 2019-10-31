@@ -848,7 +848,7 @@ class Top500Importer:
 
         try:
             mul = int(mul)
-        except ValueError:
+        except (ValueError, NameError):
             mul = 0
 
         try:

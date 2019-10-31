@@ -29,7 +29,7 @@ try:
 
         # :: Check if configuration has been properly set at config.py
         try:
-            import config as cfg
+            import cfg
 
             wiki_site = cfg.config['site']
             wiki_lang = cfg.config['lang']
@@ -39,7 +39,7 @@ try:
             status_page = cfg.config['status_page']
             redis_server = cfg.config['redis_server']
             redis_port = cfg.config['redis_port']
-        except (NameError, IndexError, ModuleNotFoundError) as e:
+        except (NameError, IndexError) as e:
             sys.stderr.write(str(e) + '\n')
             sys.exit(1)
 
@@ -84,6 +84,7 @@ try:
                 status_page)
         except TypeError as e:
             sys.stderr.write(str(e) + '\n')
+			sys.exit(1)
 
         try:
             print(top500importer.error)
