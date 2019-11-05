@@ -284,7 +284,7 @@ class Top500Importer:
             False if something fails.
         """
 
-        # Note: Non-critical exceptions printing are commended.
+        # Note: Non-critical exceptions printing are commented.
 
         stripped = lambda s: "".join(i for i in s if 31 < ord(i) < 127)
 
