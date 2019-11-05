@@ -2,6 +2,7 @@ __pycache__
 apicache-py3
 logs
 masscount
+config.py
 pywikibot.lwp
 throttle.ctrl
 user-config
