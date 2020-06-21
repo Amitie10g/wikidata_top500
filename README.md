@@ -5,6 +5,8 @@
 
 As the TOP500 website lacks a REST API, data is obtained directly from the HTML page, and extracted using the [**Beautiful Soup**](https://pypi.org/project/BeautifulSoup4/) library. So, its base code can be used for any database in HTML-only format, too.
 
+*If you use **Brave Browser**, please consider **donating some BAT** to me. If you don't have **Brave Browser**, **[download it now](https://brave.com/ami810)** and get rid annoying ads.*
+
 ## Software required
 * **Python 3.5** or above
 * [**Pywikibot**](https://github.com/wikimedia/pywikibot) (included as submodule)
